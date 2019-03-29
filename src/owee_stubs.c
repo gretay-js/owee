@@ -34,7 +34,7 @@ extern void *caml_startup__code_end;
 
 static void *closure_code_pointer(value closure)
 {
-  unsigned i;
+  uint64_t i;
   void *cp = (void*)Field(closure, 0);
 
   /* Normal code pointer */
@@ -54,15 +54,16 @@ static void *closure_code_pointer(value closure)
 CAMLprim value ml_owee_code_pointer(value closure)
 {
   void *result = closure_code_pointer(closure);
-  return ((intnat)result | 1);
+  return caml_copy_int64((int64_t)result);
 }
 
-CAMLprim value ml_owee_code_pointer_symbol(value cp)
+CAMLprim value ml_owee_code_pointer_symbol(value cp_value)
 {
   const char * result = "";
   Dl_info info;
+  int64_t cp = Int64_val(cp_value);
 
-  if ((intnat)cp != 1 &&
+  if (cp != 0 &&
       dladdr((void*)cp, &info) != 0 &&
       info.dli_sname != NULL)
   {

@@ -32,13 +32,13 @@ let count_rows body =
     | None -> !count
     | Some line_program ->
       let check _header state address =
-        if address <> max_int then
+        if address <> Int64.max_int then
           incr count;
         if state.end_sequence
-        then max_int
+        then Int64.max_int
         else state.address
       in
-      let _ : int = fold_rows line_program check max_int in
+      let _ : int64 = fold_rows line_program check Int64.max_int in
       aux ()
   in
   aux ()
@@ -55,7 +55,7 @@ let store_rows body array =
     | None -> ()
     | Some (header, chunk) ->
       let check _header state address =
-        if address <> max_int then
+        if address <> Int64.max_int then
           begin
             array.(!index) <-
               address,
@@ -69,11 +69,11 @@ let store_rows body array =
         prev_line := state.line;
         prev_col := state.col;
         if state.end_sequence then
-          max_int
+          Int64.max_int
         else
           state.address
       in
-      let _ : int = fold_rows (header, chunk) check max_int in
+      let _ : int64 = fold_rows (header, chunk) check Int64.max_int in
       aux ()
   in
   aux ()
@@ -87,7 +87,7 @@ let cache = lazy begin
     (*Printf.eprintf "Looking for 0x%X\n" t;*)
     let body = Owee_elf.section_body buffer section in
     let count = count_rows body in
-    let cache = Array.make count (max_int, max_int, None) in
+    let cache = Array.make count (Int64.max_int, Int64.max_int, None) in
     store_rows body cache;
     cache
 end
@@ -97,24 +97,31 @@ let rec bsearch cache i j address =
   else
     let k = (i + j) / 2 in
     let a0, a1, result = cache.(k) in
-    if a0 lsr 1 <= address && address < a1 lsr 1 then
+    if (Int64.compare a0 address) <= 0 && (Int64.compare address a1) < 0 then
       result
-    else if address < a0 lsr 1 then
+    else if (Int64.compare address a0) < 0 then
       bsearch cache i k address
     else
       bsearch cache (k + 1) j address
 
 let lookup t =
   if t = none then None
-  else if Obj.is_int (Obj.repr t) then
-    let lazy cache = cache in
-    bsearch cache 0 (Array.length cache) (Obj.magic t : int)
-  else
+  else if Obj.is_int (Obj.repr t) then assert (false)
+  else begin
     let t = Obj.repr t in
-    assert (Obj.tag t = 0);
-    assert (Obj.size t = 1);
-    assert (Obj.size (Obj.field t 0) = 3);
-    Obj.obj t
+    if Obj.tag t = Obj.custom_tag then begin
+      (* int64 *)
+      assert (Obj.size t = 8);
+      let lazy cache = cache in
+      bsearch cache 0 (Array.length cache) (Obj.magic t : int64)
+    end
+    else begin
+      assert (Obj.tag t = 0);
+      assert (Obj.size t = 1);
+      assert (Obj.size (Obj.field t 0) = 3);
+      Obj.obj t
+    end
+  end
 
 let locate f = lookup (extract f)
 
