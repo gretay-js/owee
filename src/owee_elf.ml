@@ -102,7 +102,7 @@ type section = {
 }
 
 let read_section header t n =
-  seek t (header.e_shoff + n * header.e_shentsize);
+  seek t ((Int64.to_int header.e_shoff) + n * header.e_shentsize);
   ensure t 64 "Shdr truncated";
   let sh_name      = Read.u32 t in
   let sh_type      = Read.u32 t in
@@ -120,9 +120,9 @@ let read_section header t n =
 
 let read_section_name shstrndx t shdr =
   let n = shdr.sh_name in
-  seek t (shstrndx.sh_offset + n);
+  seek t ((Int64.to_int shstrndx.sh_offset) + n);
   Read.zero_string "Unterminated section name" t
-    ~maxlen:(shstrndx.sh_size - n) ()
+    ~maxlen:((Int64.to_int shstrndx.sh_size) - n) ()
 
 let read_sections header t =
   let sections = Array.init header.e_shnum (read_section header t) in
@@ -139,7 +139,8 @@ let read_elf buffer =
   header, read_sections header elf
 
 let section_body buffer shdr =
-  Bigarray.Array1.sub buffer shdr.sh_offset shdr.sh_size
+  Bigarray.Array1.sub buffer
+    (Int64.to_int shdr.sh_offset) (Int64.to_int shdr.sh_size)
 
 exception Found of section
 let find_section sections name =
@@ -161,7 +162,7 @@ module String_table = struct
   type t = Owee_buf.t
 
   let get_string t ~index =
-    if index < 0 || index >= Owee_buf.dim t then
+    if index < 0 || index >= Owee_buf.size t then
       None
     else
       let cursor = Owee_buf.cursor t ~at:index in
@@ -257,8 +258,8 @@ module Symbol_table = struct
       let st_info = Owee_buf.Read.u8 cursor in
       let st_other = Owee_buf.Read.u8 cursor in
       let st_shndx = Owee_buf.Read.u16 cursor in
-      let st_value = Int64.of_int (Owee_buf.Read.u64 cursor) in
-      let st_size = Int64.of_int (Owee_buf.Read.u64 cursor) in
+      let st_value = Owee_buf.Read.u64 cursor in
+      let st_size = Owee_buf.Read.u64 cursor in
       let symbol_end =
         if Int64.compare st_size 0L = 0 then
           Int64.add st_value 1L
@@ -268,7 +269,7 @@ module Symbol_table = struct
       { st_name; st_info; st_other; st_shndx; st_value; st_size; symbol_end; }
 
     let create buf =
-      let num_symbols = (Owee_buf.dim buf) / Symbol.struct_size in
+      let num_symbols = (Owee_buf.size buf) / Symbol.struct_size in
       let interval_array =
         Array.init num_symbols (fun index ->
           let symbol = extract buf ~index in

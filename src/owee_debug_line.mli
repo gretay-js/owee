@@ -14,7 +14,7 @@ val read_chunk : cursor -> (header * cursor) option
     IMPORTANT: this state is mutable!
     A value of this type can change as the file is scanned. *)
 type state = {
-  mutable address        : int;
+  mutable address        : int64;
   mutable filename       : string;
   mutable file           : int;
   mutable line           : int;
