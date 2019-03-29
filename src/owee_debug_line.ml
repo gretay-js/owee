@@ -42,8 +42,8 @@ let read_header t =
   let total_length = Read.u32 t in
   let is_64bit     = total_length = 0xFFFF_FFFF in
   let total_length =
-    if is_64bit then Read.u64 t else total_length in
-  let chunk = sub t total_length in
+    if is_64bit then Read.u64 t else Int64.of_int (total_length) in
+  let chunk = sub t (Int64.to_int total_length) in
   let version = Read.u16 chunk in
   assert_format (version >= 2 && version <= 4)
     "unknown .debug_line version";
@@ -76,7 +76,7 @@ let read_chunk t =
   else Some (read_header t)
 
 type state = {
-  mutable address        : int;
+  mutable address        : int64;
   mutable filename       : string;
   mutable file           : int;
   mutable line           : int;
@@ -91,7 +91,7 @@ type state = {
 }
 
 let initial_state header = {
-  address        = 0;
+  address        = 0L;
   filename       = "";
   file           = 1;
   line           = 1;
@@ -106,7 +106,7 @@ let initial_state header = {
 }
 
 let reset_state state header =
-  state.address        <- 0;
+  state.address        <- 0L;
   state.filename       <- "";
   state.file           <- 1;
   state.line           <- 1;
@@ -144,8 +144,8 @@ let step header section state f acc =
     flush_row header state f acc;
 
   | 2 (*DW_LNS_advance_pc *) ->
-    state.address <- state.address +
-                     (Read.uleb128 section) * header.minimum_instruction_length;
+    let step = Read.uleb128 section * header.minimum_instruction_length in
+    state.address <- Int64.add state.address (Int64.of_int step);
     acc
 
   | 3 (*DW_LNS_advance_line *) ->
@@ -169,13 +169,13 @@ let step header section state f acc =
     acc
 
   | 8 (*DW_LNS_const_add_pc *) ->
-    state.address <- state.address +
-                     header.minimum_instruction_length *
-                     ((255 - header.opcode_base) / header.line_range);
+    let step = header.minimum_instruction_length *
+               ((255 - header.opcode_base) / header.line_range) in
+    state.address <- Int64.add state.address (Int64.of_int step);
     acc
 
   | 9 (*DW_LNS_fixed_advance_pc*) ->
-    state.address <- state.address + Read.u16 section;
+    state.address <- Int64.add state.address (Int64.of_int (Read.u16 section));
     acc
 
   | 10 (*DW_LNS_set_prologue_end*) when header.version > 2 ->
@@ -219,7 +219,8 @@ let step header section state f acc =
     let opcode = opcode - header.opcode_base in
     let addr_adv = opcode / header.line_range in
     let line_adv = opcode mod header.line_range in
-    state.address <- state.address + addr_adv * header.minimum_instruction_length;
+    let step = addr_adv * header.minimum_instruction_length in
+    state.address <- Int64.add state.address (Int64.of_int step);
     state.line    <- state.line    + line_adv + header.line_base;
     flush_row header state f acc
 
