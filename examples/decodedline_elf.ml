@@ -27,7 +27,8 @@ let () =
           match get_filename header state with
           | None -> ()
           | Some filename ->
-            Printf.printf "%s\t%d\t0x%x\n" filename state.line state.address
+            Printf.printf "%s\t%d\t%d\t%d\t0x%x\n" filename
+              state.line state.col state.discriminator state.address
         in
         Owee_debug_line.fold_rows (header, chunk) check ();
         aux ()
