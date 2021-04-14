@@ -1,8 +1,8 @@
 (executables
- (names decodedline_elf decodedline_macho functions read_buildid read_stapsdt_probes)
+ (names decodedline_elf decodedline_macho functions read_buildid read_stapsdt_probes loc2addr)
  (libraries owee unix))
 
 (alias
  (name examples)
  (deps decodedline_elf.exe decodedline_macho.exe
-       read_buildid.exe read_stapsdt_probes.exe))
+       read_buildid.exe read_stapsdt_probes.exe loc2addr.exe))
